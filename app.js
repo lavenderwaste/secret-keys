@@ -64,6 +64,8 @@ app.get('/register', (req, res) => {
 });
 
 app.get('/secrets', (req, res) => {
+  //erase cache for when logging out and avoid going back
+  res.set('Cache-Control', 'no-cache, private, no-store, must-revalidate, max-stal e=0, post-check=0, pre-check=0');
   //before giving access, check if user has access
   if(req.isAuthenticated()) {
     res.render('secrets');
@@ -92,21 +94,34 @@ app.post('/register', (req, res) => {
 });
 
 app.post('/login', (req, res) => {
-  const user = new User({
-    username: req.body.username,
-    password: req.body.password
-  });
 
-  //passport login authentication
-  req.login(user, (err) => {
-    if(err) {
-      console.log(err);
-    } else {
-      passport.authenticate("local")(req, res, function() {
-        res.redirect("/secrets");
+  //Check if username exist on DB
+  User.findOne({username: req.body.username}, (err, foundUser) => {
+    //if user exists, create object of user and store username and password
+    if(foundUser) {
+      const user = new User({
+        username: req.body.username,
+        password: req.body.password
       });
-    }
-  });
+
+      //passport login authentication
+    passport.authenticate("local", (err, user) => {
+      if(err) {
+        console.log(err);
+      } else {
+        if(user) {
+          req.login(user, (err) => {
+            res.redirect('/secrets');
+          });
+        } else {
+          res.redirect('/login');
+        }
+      }
+    })(req, res);
+  } else {
+    res.redirect('/login');
+  }
+ });
 });
 
 //SERVER LISTEN
