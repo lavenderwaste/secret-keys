@@ -93,35 +93,18 @@ app.post('/register', (req, res) => {
   });
 });
 
-app.post('/login', (req, res) => {
-
-  //Check if username exist on DB
-  User.findOne({username: req.body.username}, (err, foundUser) => {
-    //if user exists, create object of user and store username and password
-    if(foundUser) {
-      const user = new User({
-        username: req.body.username,
-        password: req.body.password
-      });
-
-      //passport login authentication
-    passport.authenticate("local", (err, user) => {
-      if(err) {
-        console.log(err);
-      } else {
-        if(user) {
-          req.login(user, (err) => {
-            res.redirect('/secrets');
-          });
-        } else {
-          res.redirect('/login');
-        }
-      }
-    })(req, res);
-  } else {
-    res.redirect('/login');
-  }
- });
+app.post('/login', passport.authenticate('local', {failureRedirect: '/'}), (req, res) => {
+  const user = new User({
+    username: req.body.username,
+    password: req.body.password
+  });
+  req.login(user, (err) => {
+    if(err) {
+      console.log(err);
+    } else {
+      res.redirect('/secrets');
+    }
+  });
 });
 
 //SERVER LISTEN
