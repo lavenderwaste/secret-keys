@@ -7,6 +7,8 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const passport = require('passport');
 const passportLocalMongoose = require('passport-local-mongoose');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const findOrCreate = require('mongoose-findorcreate');
 
 const app = express();
 
@@ -35,11 +37,14 @@ async function main() {
   //USERDB Schema
   const userSchema = new mongoose.Schema ({
     email: String,
-    password: String
+    password: String,
+    googleId: String
   });
 
   //passportLocalMongoose Active on userSchema
   userSchema.plugin(passportLocalMongoose);
+  //findOrCreate Plugin Active on userSchema
+  userSchema.plugin(findOrCreate);
 
   //USERDB Collection
   const User = new mongoose.model("User", userSchema);
@@ -47,13 +52,47 @@ async function main() {
   //Passport-Local-Mongoose Configuration
   passport.use(User.createStrategy());
 
-  passport.serializeUser(User.serializeUser());
-  passport.deserializeUser(User.deserializeUser());
+  passport.serializeUser(function(user, cb) {
+    process.nextTick(function() {
+      cb(null, { id: user.id, username: user.username });
+    });
+  });
+
+  passport.deserializeUser(function(user, cb) {
+    process.nextTick(function() {
+      return cb(null, user);
+    });
+  });
+
+  //Google Auth 20 (Passport Google Auth20 Doc)
+  passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "http://localhost:3000/auth/google/secrets"
+    },
+    function(accessToken, refreshToken, profile, cb) {
+      console.log(profile);
+      User.findOrCreate({ googleId: profile.id }, function (err, user) {
+        return cb(err, user);
+      });
+    }
+  ));
 
 //ROUTES
 app.get('/', (req, res) => {
   res.render('home');
 });
+
+  //passport Google Auth20 docs - Get Profile Information
+  app.route('/auth/google').get(passport.authenticate('google', { scope: ['profile'] }));
+
+  //passport Google Auth20 docs - Redirect to authorized page
+  app.get('/auth/google/secrets',
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect to authorized page.
+    res.redirect('/secrets');
+  });
 
 app.get('/login', (req, res) => {
   res.render('login');
